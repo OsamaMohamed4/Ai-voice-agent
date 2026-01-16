@@ -1,0 +1,8 @@
+{
+  "short_name": "Voice Assistant",
+  "name": "AI Voice Assistant",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#667eea",
+  "background_color": "#ffffff"
+}

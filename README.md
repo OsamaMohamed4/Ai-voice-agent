@@ -125,7 +125,7 @@ npm install
 **Terminal 1 - Backend:**
 ```bash
 cd backend
-python realtime_gemini_agent.py dev
+python gemini_rag_agent.py dev
 ```
 ```
 

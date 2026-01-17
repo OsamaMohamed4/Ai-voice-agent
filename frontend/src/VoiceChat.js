@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   LiveKitRoom, 
   RoomAudioRenderer,
-  useVoiceAssistant,
-  BarVisualizer
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 
@@ -11,15 +9,15 @@ function VoiceChat({ roomName, onDisconnect }) {
   const [token, setToken] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [transcript, setTranscript] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
   useEffect(() => {
-    // Generate access token
     generateToken();
+    fetchUploadedFiles();
   }, []);
 
   const generateToken = async () => {
     try {
-      // Call backend token server
       const response = await fetch('http://localhost:5000/api/token', {
         method: 'POST',
         headers: {
@@ -45,6 +43,16 @@ function VoiceChat({ roomName, onDisconnect }) {
     }
   };
 
+  const fetchUploadedFiles = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/documents');
+      const data = await response.json();
+      setUploadedFiles(data.documents || []);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="loading-container">
@@ -67,18 +75,74 @@ function VoiceChat({ roomName, onDisconnect }) {
         transcript={transcript}
         setTranscript={setTranscript}
         onDisconnect={onDisconnect}
+        uploadedFiles={uploadedFiles}
+        onFileUploaded={fetchUploadedFiles}
       />
       <RoomAudioRenderer />
     </LiveKitRoom>
   );
 }
 
-function VoiceInterface({ transcript, setTranscript, onDisconnect }) {
+function VoiceInterface({ transcript, setTranscript, onDisconnect, uploadedFiles, onFileUploaded }) {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const fileInputRef = useRef(null);
 
   const addToTranscript = (speaker, text) => {
     setTranscript(prev => [...prev, { speaker, text, timestamp: new Date() }]);
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|txt|doc|docx|md)$/i)) {
+      setUploadMessage('❌ File type not allowed. Use PDF, TXT, DOC, or DOCX');
+      return;
+    }
+
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadMessage('❌ File too large. Max size: 10MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadMessage('📤 Uploading...');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUploadMessage(`✅ ${data.message}`);
+        onFileUploaded(); // Refresh file list
+        
+        // Clear message after 3 seconds
+        setTimeout(() => setUploadMessage(''), 3000);
+      } else {
+        setUploadMessage(`❌ ${data.error}`);
+      }
+    } catch (error) {
+      setUploadMessage(`❌ Upload failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -92,6 +156,46 @@ function VoiceInterface({ transcript, setTranscript, onDisconnect }) {
         <button onClick={onDisconnect} className="disconnect-button">
           End Session
         </button>
+      </div>
+
+      {/* Upload Section */}
+      <div className="upload-section">
+        <div className="upload-header">
+          <h4>📁 Upload Documents</h4>
+          <label className="upload-button">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.doc,.docx,.md"
+              onChange={handleFileSelect}
+              disabled={isUploading}
+              style={{ display: 'none' }}
+            />
+            {isUploading ? '⏳ Uploading...' : '📤 Upload File'}
+          </label>
+        </div>
+        
+        {uploadMessage && (
+          <div className={`upload-message ${uploadMessage.includes('✅') ? 'success' : 'error'}`}>
+            {uploadMessage}
+          </div>
+        )}
+
+        {uploadedFiles.length > 0 && (
+          <div className="uploaded-files">
+            <p className="files-count">📚 {uploadedFiles.length} document(s) indexed</p>
+            <div className="files-list">
+              {uploadedFiles.slice(0, 3).map((file, index) => (
+                <div key={index} className="file-item">
+                  📄 {file.name}
+                </div>
+              ))}
+              {uploadedFiles.length > 3 && (
+                <div className="file-item">+ {uploadedFiles.length - 3} more...</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="voice-content">
@@ -125,7 +229,7 @@ function VoiceInterface({ transcript, setTranscript, onDisconnect }) {
             ) : (
               <>
                 <h3>Ready to talk</h3>
-                <p>Start speaking anytime</p>
+                <p>Ask me anything about the uploaded documents</p>
               </>
             )}
           </div>
@@ -160,7 +264,7 @@ function VoiceInterface({ transcript, setTranscript, onDisconnect }) {
 
       <div className="voice-footer">
         <div className="tips">
-          <p><strong>Tips:</strong> Speak clearly and naturally. The assistant can answer questions about products, pricing, and support.</p>
+          <p><strong>💡 Tips:</strong> Upload documents (PDF/TXT) and ask questions about them. The AI will search and provide answers based on your documents.</p>
         </div>
       </div>
     </div>

@@ -1,138 +1,98 @@
-# Complete Setup Guide
+# AI Voice Agent — Real-Time Conversational AI with RAG
 
-Follow these steps to get your Voice Agent up and running.
+A real-time **voice AI agent** that holds natural spoken conversations grounded in your own documents. Built on **LiveKit** WebRTC infrastructure with **Google Gemini** for reasoning and **LlamaIndex** for retrieval-augmented answers — the same architecture pattern behind modern AI call agents.
 
-##  Quick Start Checklist
-
-- [ ] Python 3.9+ installed
-- [ ] Node.js 16+ installed
-- [ ] LiveKit account created
-- [ ] Gemini API key obtained
-- [ ] Environment variables configured
-- [ ] Dependencies installed
-- [ ] Agent running
-- [ ] Frontend running
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![LiveKit](https://img.shields.io/badge/LiveKit-Agents-FF4F00)
+![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?logo=google&logoColor=white)
+![LlamaIndex](https://img.shields.io/badge/LlamaIndex-RAG-6E44FF)
+![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)
 
 ---
 
-## Step-by-Step Instructions
+## What it does
 
-### Step 1: Get LiveKit Credentials
+- The user speaks in the browser; audio streams over **WebRTC (LiveKit)** to a Python agent worker
+- The agent transcribes, reasons with **Gemini**, and answers **out loud** in real time
+- With the RAG agent variant, answers are grounded in your indexed documents via **LlamaIndex** — the agent can answer company-specific questions instead of hallucinating
 
-1. **Go to LiveKit Cloud**
-   ```
-   https://cloud.livekit.io/
-   ```
+## Architecture
 
-2. **Sign up for free account**
-   - Click "Sign Up"
-   - Use your email or GitHub account
-   - No credit card required for free tier
+```mermaid
+flowchart LR
+    B[Browser<br/>React client] <-->|WebRTC audio| LK[LiveKit Cloud<br/>SFU / rooms]
+    LK <--> W[Python Agent Worker]
+    W -->|STT + LLM + TTS| G[Google Gemini<br/>realtime multimodal]
+    W -->|semantic retrieval| LI[LlamaIndex<br/>document index]
+    TS[Token Server] -->|access tokens| B
+```
 
-3. **Create a new project**
-   - Click "Create Project"
-   - Give it a name (e.g., "Voice Agent")
-   - Click "Create"
+## Agent variants (backend/)
 
-4. **Get your credentials**
-   - Go to "Settings" → "Keys"
-   - You'll see:
-     - **WebSocket URL** (looks like: `wss://your-project.livekit.cloud`)
-     - **API Key** (starts with `API`)
-     - **API Secret** (long string)
-   - Copy these - you'll need them soon!
+| File | What it demonstrates |
+|---|---|
+| `simple_gemini_agent.py` | Minimal voice agent — STT → Gemini → TTS loop |
+| `realtime_gemini_agent.py` | Gemini's realtime multimodal API for low-latency speech-to-speech |
+| `gemini_rag_agent.py` | **Main agent** — voice conversation grounded in documents via RAG |
+| `rag_llamaindex.py` | LlamaIndex ingestion & query pipeline (index stored in `storage/`) |
+| `token_server.py` | Issues LiveKit room access tokens to the frontend |
 
-### Step 2: Get Gemini API Key (3 minutes)
+## Key Features
 
-1. **Go to Google AI Studio**
-   ```
-   https://makersuite.google.com/app/apikey
-   ```
+- **Sub-second voice loop** using LiveKit's agent framework and Gemini realtime
+- **Document-grounded answers** (RAG) — drop files in, the agent answers from them
+- **Clean separation**: token issuance, agent logic, and retrieval are independent modules
+- **Free-tier friendly**: LiveKit Cloud free tier + Gemini free API quota
 
-2. **Sign in with Google account**
+## Getting Started
 
-3. **Create API Key**
-   - Click "Create API Key"
-   - Select "Create API key in new project" or use existing
-   - Copy the key (starts with `AI`)
+### Prerequisites
+- Python 3.9+, Node.js 16+
+- [LiveKit Cloud](https://cloud.livekit.io/) account (free) — WebSocket URL, API key & secret
+- [Gemini API key](https://aistudio.google.com/) (free tier)
 
-4. **Important**: This is FREE tier with generous limits:
-   - 60 requests per minute
-   - 1,500 requests per day
-   - Perfect for development!
-
-### Step 3: Clone and Setup Backend
+### 1. Backend
 
 ```bash
-# Clone the repository
-git clone 
-cd voice-agent-livekit
-
-# Navigate to backend
 cd backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Mac/Linux:
-source venv/bin/activate
-
-# Install dependencies
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cp .env.example .env            # fill in LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, GEMINI_API_KEY
 ```
 
-### Step 4: Configure Backend Environment
-
-1. **Create `.env` file in `backend/` directory**
-
-2. **Add your credentials:**
-   ```env
-   LIVEKIT_URL=wss://your-project.livekit.cloud
-   LIVEKIT_API_KEY=APIxxxxxxxxxxxxxxxxxx
-   LIVEKIT_API_SECRET=your_secret_here
-   GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxx
-   ```
-
-3. **Replace with your actual values** from Steps 1 and 2
-
-### Step 6: Setup Frontend
+### 2. Frontend
 
 ```bash
-# Open new terminal
-# Navigate to frontend directory
 cd frontend
-
-# Install dependencies
 npm install
+# create frontend/.env with REACT_APP_LIVEKIT_URL (and token endpoint if customized)
 ```
 
-### Step 7: Configure Frontend Environment
+### 3. Run
 
-1. **Create `.env` file in `frontend/` directory**
-
-2. **Add the same LiveKit credentials:**
-   ```env
-   REACT_APP_LIVEKIT_URL=wss://your-project.livekit.cloud
-   REACT_APP_LIVEKIT_API_KEY=APIxxxxxxxxxxxxxxxxxx
-   REACT_APP_LIVEKIT_API_SECRET=your_secret_here
-   ```
-
-### Step 8: Run the Application
-
-**Terminal 1 - Backend:**
 ```bash
-cd backend
-python gemini_rag_agent.py dev
-```
+# Terminal 1 — the voice agent
+cd backend && python gemini_rag_agent.py dev
+
+# Terminal 2 — the web client
+cd frontend && npm start        # opens http://localhost:3000
 ```
 
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm start
-```
+Speak into your microphone and the agent answers in real time.
 
-Browser should automatically open at `http://localhost:3000`
+## Tech Stack
+
+**LiveKit Agents** (WebRTC, turn-taking, audio pipeline) · **Google Gemini** (LLM + realtime speech) · **LlamaIndex** (document indexing & retrieval) · **FastAPI/Flask token server** · **React** frontend
+
+## Challenges solved
+
+- Keeping end-to-end voice latency low enough for natural conversation (streaming pipeline, realtime API)
+- Grounding spoken answers in documents without breaking conversational flow
+- Correct LiveKit token/room lifecycle between frontend and agent worker
+
+## Roadmap
+
+- [ ] Barge-in (interrupt the agent mid-answer)
+- [ ] Persistent vector store (Qdrant) instead of local index
+- [ ] Call transcripts & analytics dashboard
